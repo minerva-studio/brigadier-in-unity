@@ -11,6 +11,12 @@ namespace Brigadier.ArgumentTypes
         /// <exception cref="CommandSyntaxException"></exception>
         public abstract T Parse(IStringReader reader);
 
+        /// <exception cref="CommandSyntaxException"></exception>
+        public virtual T Parse<TSource>(IStringReader reader, TSource source)
+        {
+            return Parse(reader);
+        }
+
         public virtual Task<Suggestions> ListSuggestions<TSource>(CommandContext<TSource> context, SuggestionsBuilder builder)
         {
             return Suggestions.Empty();
