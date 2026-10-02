@@ -27,7 +27,8 @@ namespace Brigadier.Context
 
         public CommandContext<TSource> CopyFor(TSource source)
         {
-            if (Source.Equals(source))
+            //PortNote: upstream compares references (==), not Equals. A value type source never matches and is always copied.
+            if (ReferenceEquals(Source, source))
             {
                 return this;
             }
