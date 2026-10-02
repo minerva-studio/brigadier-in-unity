@@ -260,6 +260,51 @@ namespace Brigadier.Tests
         }
 
         [Test]
+        public void TestCorrectExecuteContextAfterRedirect()
+        {
+            var subject = new CommandDispatcher<int>();
+
+            var root = subject.Root;
+            var add = LiteralArgumentBuilder<int>.LiteralArgument("add");
+            var blank = LiteralArgumentBuilder<int>.LiteralArgument("blank");
+            var addArg = RequiredArgumentBuilder<int, int>.RequiredArgument("value", Arguments.Integer());
+            var run = LiteralArgumentBuilder<int>.LiteralArgument("run");
+
+            subject.Register(add.Then(addArg.Redirect(root, c => c.Source + Arguments.GetInteger(c, "value"))));
+            subject.Register(blank.Redirect(root));
+            subject.Register(run.Executes(c => c.Source));
+
+            Assert.That(subject.Execute("run", 0), Is.EqualTo(0));
+            Assert.That(subject.Execute("run", 1), Is.EqualTo(1));
+
+            Assert.That(subject.Execute("add 5 run", 1), Is.EqualTo(1 + 5));
+            Assert.That(subject.Execute("add 5 add 6 run", 2), Is.EqualTo(2 + 5 + 6));
+            Assert.That(subject.Execute("add 5 blank run", 1), Is.EqualTo(1 + 5));
+            Assert.That(subject.Execute("blank add 5 run", 1), Is.EqualTo(1 + 5));
+            Assert.That(subject.Execute("add 5 blank add 6 run", 2), Is.EqualTo(2 + 5 + 6));
+            Assert.That(subject.Execute("add 5 blank blank add 6 run", 2), Is.EqualTo(2 + 5 + 6));
+        }
+
+        [Test]
+        public void TestSharedRedirectAndExecuteNodes()
+        {
+            var subject = new CommandDispatcher<int>();
+
+            var root = subject.Root;
+            var add = LiteralArgumentBuilder<int>.LiteralArgument("add");
+            var addArg = RequiredArgumentBuilder<int, int>.RequiredArgument("value", Arguments.Integer());
+
+            subject.Register(add.Then(
+                addArg
+                    .Redirect(root, c => c.Source + Arguments.GetInteger(c, "value"))
+                    .Executes(c => c.Source)
+            ));
+
+            Assert.That(subject.Execute("add 5", 1), Is.EqualTo(1));
+            Assert.That(subject.Execute("add 5 add 6", 1), Is.EqualTo(1 + 5));
+        }
+
+        [Test]
         public void TestExecuteRedirected()
         {
             var source1 = new object();
@@ -394,6 +439,164 @@ namespace Brigadier.Tests
         public void TestFindNodeDoesntExist()
         {
             Assert.That(_subject.FindNode(new[] { "foo", "bar" }), Is.Null);
+        }
+
+        [Test]
+        public void TestResultConsumerInNonErrorRun()
+        {
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+
+            var command = new RecordingCommand<object>(5);
+            _subject.Register(Literal("foo").Executes(command.Run));
+
+            Assert.That(_subject.Execute("foo", _source), Is.EqualTo(5));
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.True);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(5));
+        }
+
+        [Test]
+        public void TestResultConsumerInForkedNonErrorRun()
+        {
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+
+            _subject.Register(Literal("foo").Executes(c => (int)c.Source));
+            var contexts = new object[] { 9, 10, 11 };
+
+            _subject.Register(Literal("repeat").Fork(_subject.Root, context => contexts));
+
+            Assert.That(_subject.Execute("repeat foo", _source), Is.EqualTo(contexts.Length));
+            Assert.That(consumer.Count(contexts[0], true, 9), Is.EqualTo(1));
+            Assert.That(consumer.Count(contexts[1], true, 10), Is.EqualTo(1));
+            Assert.That(consumer.Count(contexts[2], true, 11), Is.EqualTo(1));
+            Assert.That(consumer.Calls.Count, Is.EqualTo(3));
+        }
+
+        [Test]
+        public void TestExceptionInNonForkedCommand()
+        {
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+            var command = new RecordingCommand<object>(c => throw exception);
+            _subject.Register(Literal("crash").Executes(command.Run));
+
+            var ex = Assert.Throws<CommandSyntaxException>(() => _subject.Execute("crash", _source));
+            Assert.That(ex, Is.SameAs(exception));
+
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.False);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestExceptionInNonForkedRedirectedCommand()
+        {
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+            var command = new RecordingCommand<object>(c => throw exception);
+            _subject.Register(Literal("crash").Executes(command.Run));
+            _subject.Register(Literal("redirect").Redirect(_subject.Root));
+
+            var ex = Assert.Throws<CommandSyntaxException>(() => _subject.Execute("redirect crash", _source));
+            Assert.That(ex, Is.SameAs(exception));
+
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.False);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestExceptionInForkedRedirectedCommand()
+        {
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+            var command = new RecordingCommand<object>(c => throw exception);
+            _subject.Register(Literal("crash").Executes(command.Run));
+            // Upstream passes Collections::singleton, so the forked source is the redirecting context itself
+            _subject.Register(Literal("redirect").Fork(_subject.Root, context => new object[] { context }));
+
+            Assert.That(_subject.Execute("redirect crash", _source), Is.EqualTo(0));
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.False);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestExceptionInNonForkedRedirect()
+        {
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var command = new RecordingCommand<object>(3);
+            _subject.Register(Literal("noop").Executes(command.Run));
+            _subject.Register(Literal("redirect").Redirect(_subject.Root, context => throw exception));
+
+            var ex = Assert.Throws<CommandSyntaxException>(() => _subject.Execute("redirect noop", _source));
+            Assert.That(ex, Is.SameAs(exception));
+
+            Assert.That(command.Calls, Is.Empty);
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.False);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestExceptionInForkedRedirect()
+        {
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var command = new RecordingCommand<object>(3);
+            _subject.Register(Literal("noop").Executes(command.Run));
+            _subject.Register(Literal("redirect").Fork(_subject.Root, context => throw exception));
+
+            Assert.That(_subject.Execute("redirect noop", _source), Is.EqualTo(0));
+
+            Assert.That(command.Calls, Is.Empty);
+            Assert.That(consumer.Calls.Count, Is.EqualTo(1));
+            Assert.That(consumer.Calls[0].Success, Is.False);
+            Assert.That(consumer.Calls[0].Result, Is.EqualTo(0));
+        }
+
+        [Test]
+        public void TestPartialExceptionInForkedRedirect()
+        {
+            var exception = CommandSyntaxException.BuiltInExceptions.ReaderExpectedBool().Create();
+            var otherSource = new object();
+            var rejectedSource = new object();
+
+            var consumer = new RecordingConsumer<object>();
+            _subject.SetConsumer(consumer.OnCommandComplete);
+            var command = new RecordingCommand<object>(3);
+            _subject.Register(Literal("run").Executes(command.Run));
+            _subject.Register(Literal("split").Fork(_subject.Root, context => new[] { _source, rejectedSource, otherSource }));
+            _subject.Register(Literal("filter").Fork(_subject.Root, context =>
+            {
+                var currentSource = context.Source;
+                if (currentSource == rejectedSource)
+                {
+                    throw exception;
+                }
+                return new[] { currentSource };
+            }));
+
+            Assert.That(_subject.Execute("split filter run", _source), Is.EqualTo(2));
+
+            Assert.That(command.Calls.Count, Is.EqualTo(2));
+            Assert.That(command.Calls[0].Source, Is.SameAs(_source));
+            Assert.That(command.Calls[1].Source, Is.SameAs(otherSource));
+
+            Assert.That(consumer.Count(rejectedSource, false, 0), Is.EqualTo(1));
+            Assert.That(consumer.Count(_source, true, 3), Is.EqualTo(1));
+            Assert.That(consumer.Count(otherSource, true, 3), Is.EqualTo(1));
+            Assert.That(consumer.Calls.Count, Is.EqualTo(3));
         }
     }
 }
