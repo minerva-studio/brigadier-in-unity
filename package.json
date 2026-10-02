@@ -1,12 +1,11 @@
 {
-    "name": "com.minervastudio.brigadier",
-    "version": "1.0.1",
+    "name": "com.minervagamestudio.brigadier",
+    "version": "1.3.0",
     "displayName": "Brigadier Parser in Unity",
     "description": "Brigadier is a command parser & dispatcher, designed and developed for Minecraft: Java Edition and now freely available for use elsewhere under the MIT license. This package is a port of the original library into C#",
-    "unity": "2018.3",
+    "unity": "2021.3",
     "dependencies": {},
     "keywords": [
-        "unity",
         "external",
         "brigadier",
         "C#",
@@ -16,6 +15,6 @@
     "author": {
         "name": "Minerva Game Studio",
         "email": "library.of.meialia@gmail.com",
-        "url": "https://github.com/minerva-studio/brigadier-unity"
+        "url": "https://github.com/minerva-studio/brigadier-in-unity"
     }
 }
