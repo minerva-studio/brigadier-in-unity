@@ -35,10 +35,7 @@ namespace Brigadier
 
         private readonly Predicate<CommandNode<TSource>> _hasCommand;
 
-        /// <summary>
-        /// Sets a callback to be informed of the result of every command. 
-        /// </summary> 
-        private ResultConsumer<TSource> Consumer { get; } = (c, s, r) => { };
+        private ResultConsumer<TSource> _consumer = (c, s, r) => { };
 
         /// <summary>
         /// Create a new <see cref='CommandDispatcher{TSource}'/> with the specified root node. 
@@ -93,8 +90,17 @@ namespace Brigadier
         }
 
         /// <summary>
+        /// Sets a callback to be informed of the result of every command.
+        /// </summary>
+        /// <param name="consumer"> the new result consumer to be called</param>
+        public void SetConsumer(ResultConsumer<TSource> consumer)
+        {
+            _consumer = consumer;
+        }
+
+        /// <summary>
         /// Parses and executes a given command.
-        /// 
+        ///
         /// <para>This is a shortcut to first <see cref="Parse(StringReader, TSource)"/> and then <see>Execute(ParseResults{TSource})</see>.</para>
         /// 
         /// <para>It is recommended to parse and execute as separate steps, as parsing is often the most expensive step, and easiest to cache.</para>
@@ -255,7 +261,7 @@ namespace Brigadier
                             }
                             catch (CommandSyntaxException)
                             {
-                                Consumer(context, false, 0);
+                                _consumer(context, false, 0);
                                 if (!forked)
                                 {
                                     throw;
@@ -270,12 +276,12 @@ namespace Brigadier
                         {
                             var value = context.Command(context);
                             result += value;
-                            Consumer(context, true, value);
+                            _consumer(context, true, value);
                             successfulForks++;
                         }
                         catch (CommandSyntaxException)
                         {
-                            Consumer(context, false, 0);
+                            _consumer(context, false, 0);
                             if (!forked)
                             {
                                 throw;
@@ -290,7 +296,7 @@ namespace Brigadier
 
             if (!foundCommand)
             {
-                Consumer(original, false, 0);
+                _consumer(original, false, 0);
                 throw CommandSyntaxException.BuiltInExceptions.DispatcherUnknownCommand().CreateWithContext(parse.Reader);
             }
 
