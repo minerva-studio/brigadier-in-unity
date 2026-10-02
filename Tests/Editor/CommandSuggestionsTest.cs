@@ -271,6 +271,30 @@ namespace Brigadier.Tests
         }
 
         [Test]
+        public void GetCompletionSuggestions_redirect_contextualArgument()
+        {
+            var actual = _subject.Register(
+                Literal("actual")
+                    .Then(Argument("arg_one", Arguments.Word())
+                        .Then(Argument("arg_two", Arguments.Word())
+                            .Suggests((context, builder) =>
+                            {
+                                var argOne = Arguments.GetString(context, "arg_one");
+                                builder.Suggest("contextual_" + argOne);
+                                return builder.BuildFuture();
+                            })
+                        )
+                    )
+            );
+            _subject.Register(Literal("redirect").Redirect(actual));
+
+            var result = _subject.GetCompletionSuggestions(_subject.Parse("redirect first ", _source)).Result;
+
+            Assert.That(result.Range, Is.EqualTo(StringRange.At(15)));
+            Assert.That(result.List, Is.EqualTo(Expected(StringRange.At(15), "contextual_first")));
+        }
+
+        [Test]
         public void GetCompletionSuggestions_execute_simulation()
         {
             var execute = _subject.Register(Literal("execute"));

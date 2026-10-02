@@ -126,11 +126,11 @@ namespace Brigadier.Context
                     else if (Nodes.Count > 0)
                     {
                         var last = Nodes[Nodes.Count - 1];
-                        return new SuggestionContext<TSource>(last.Node, last.Range.End + 1);
+                        return new SuggestionContext<TSource>(this, last.Node, last.Range.End + 1);
                     }
                     else
                     {
-                        return new SuggestionContext<TSource>(RootNode, Range.Start);
+                        return new SuggestionContext<TSource>(this, RootNode, Range.Start);
                     }
                 }
                 else
@@ -141,7 +141,7 @@ namespace Brigadier.Context
                         var nodeRange = node.Range;
                         if (nodeRange.Start <= cursor && cursor <= nodeRange.End)
                         {
-                            return new SuggestionContext<TSource>(prev, nodeRange.Start);
+                            return new SuggestionContext<TSource>(this, prev, nodeRange.Start);
                         }
                         prev = node.Node;
                     }
@@ -149,7 +149,7 @@ namespace Brigadier.Context
                     {
                         throw new InvalidOperationException("Can't find node before cursor");
                     }
-                    return new SuggestionContext<TSource>(prev, Range.Start);
+                    return new SuggestionContext<TSource>(this, prev, Range.Start);
                 }
             }
             throw new InvalidOperationException("Can't find node before cursor");
