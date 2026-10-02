@@ -300,6 +300,33 @@ namespace Brigadier.Tests
         }
 
         [Test]
+        public void TestIncompleteRedirectShouldThrow()
+        {
+            var foo = _subject.Register(Literal("foo")
+                .Then(Literal("bar")
+                    .Then(Argument("value", Arguments.Integer()).Executes(context => Arguments.GetInteger(context, "value"))))
+                .Then(Literal("awa").Executes(context => 2)));
+            _subject.Register(Literal("baz").Redirect(foo));
+
+            var ex = Assert.Throws<CommandSyntaxException>(() => _subject.Execute("baz bar", _source), "Should have thrown an exception");
+            Assert.That(ex.Type, Is.SameAs(CommandSyntaxException.BuiltInExceptions.DispatcherUnknownCommand()));
+        }
+
+        [Test]
+        public void TestRedirectModifierEmptyResult()
+        {
+            var foo = _subject.Register(Literal("foo")
+                .Then(Literal("bar")
+                    .Then(Argument("value", Arguments.Integer()).Executes(context => Arguments.GetInteger(context, "value"))))
+                .Then(Literal("awa").Executes(context => 2)));
+            RedirectModifier<object> emptyModifier = context => new object[0];
+            _subject.Register(Literal("baz").Fork(foo, emptyModifier));
+
+            var result = _subject.Execute("baz bar 100", _source);
+            Assert.That(result, Is.EqualTo(0)); // No commands executed, so result is 0
+        }
+
+        [Test]
         public void TestExecuteOrphanedSubcommand()
         {
             _subject.Register(Literal("foo").Then(
