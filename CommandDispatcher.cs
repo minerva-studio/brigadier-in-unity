@@ -616,7 +616,7 @@ namespace Brigadier
                 var future = Suggestions.Empty();
                 try
                 {
-                    future = node.ListSuggestions(context.Build(truncatedInput), new SuggestionsBuilder(truncatedInput, truncatedInputLowerCase, start));
+                    future = node.ListSuggestions(nodeBeforeCursor.Context.Build(truncatedInput), new SuggestionsBuilder(truncatedInput, truncatedInputLowerCase, start));
                 }
                 catch (CommandSyntaxException)
                 {
