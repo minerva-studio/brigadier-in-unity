@@ -1,4 +1,4 @@
-using Brigadier.Tree;
+﻿using Brigadier.Tree;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -50,6 +50,9 @@ namespace Brigadier.Context
             }
         }
 
+        /// <summary>
+        /// Executable part of command. Will be run only when context is last in chain.
+        /// </summary>
         public Command<TSource> Command { get; }
 
         public TSource Source { get; }
@@ -103,6 +106,9 @@ namespace Brigadier.Context
                 .Hash(Child);
         }
 
+        /// <summary>
+        /// Modifier of source. Will be run only when context has children (i.e. is not last in chain).
+        /// </summary>
         public RedirectModifier<TSource> RedirectModifier { get; }
 
         public StringRange Range { get; }
@@ -118,6 +124,15 @@ namespace Brigadier.Context
             return Nodes.Count > 0;
         }
 
+        /// <summary>
+        /// Special modifier for running this context and children.
+        /// Only relevant if it's not last in chain.
+        /// <para>Effects:</para>
+        /// <list type="bullet">
+        ///     <item>Exceptions from <see cref="Command"/> or <see cref="RedirectModifier"/> will be ignored</item>
+        ///     <item>Result of command will be number of elements run by element in chain (instead of sum of <see cref="Command"/> results</item>
+        /// </list>
+        /// </summary>
         public bool IsForked()
         {
             return _forks;
