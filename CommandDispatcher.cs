@@ -238,7 +238,6 @@ namespace Brigadier
                         {
                             continue;
                         }
-                        foundCommand = true;
                         var modifier = context.RedirectModifier;
                         if (modifier == null)
                         {
@@ -257,6 +256,10 @@ namespace Brigadier
                                     {
                                         next.Add(child.CopyFor(source));
                                     }
+                                }
+                                else
+                                {
+                                    foundCommand = true;
                                 }
                             }
                             catch (CommandSyntaxException)
